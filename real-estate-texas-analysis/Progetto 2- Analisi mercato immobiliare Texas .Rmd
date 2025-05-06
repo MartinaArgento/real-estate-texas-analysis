@@ -1,0 +1,874 @@
+---
+title: "Analisi del mercato immobiliare del Texas"
+author: "Martina Alba Argento"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# Load the dataset from a CSV file called "realestate_texas.csv"
+# The fields in the CSV are separated by commas
+realestate_texas <- read.csv("realestate_texas.csv", sep=",")
+
+# Display the first 5 rows of the dataset to get an overview of the data
+head(realestate_texas, 5)
+
+```
+
+## Analisi delle variabili.
+Nel dataset sono presenti diversi tipi di variabili. 
+In particolare:
+
+-  city è una variabile qualitativa su scala nominale.
+-  month è una variabile qualitativa nominale ciclica codificata in numeri
+-  year è una variabile quantitativa discreta su scala di intervallo.
+-  sales, volume, median_price, listings, month_inventory sono variabili quantitative su scala di rapporto.
+
+Su month e year, che sottintendono una dimensione temporale, è possibile costruire una serie storica. Questo tipo di analisi consente di osservare l'andamento di una variabile nel tempo, evidenziando eventuali trend, stagionalità o cicli.
+
+Per quanto riguarda le altre variabili, si possono condurre vari tipi di analisi in relazione al tempo:
+
+- La variabile sales può essere analizzata nel tempo per capire come varia il numero totale di vendite. Utilizzando un grafico a linee o un istogramma, si può osservare l'andamento mensile o annuale. Per confrontare l'andamento delle vendite tra diverse città, è possibile usare un grafico a barre affiancate o sovrapposte, normalizzando i dati per visualizzare le differenze proporzionali tra le città nel tempo.
+
+- Un boxplot può essere utile per analizzare median_price, mettendo in evidenza la mediana, i quartili e gli outlier, così come gli indici di variabilità. Questo può rivelare la distribuzione dei prezzi di vendita e la presenza di variazioni anomale nei dati.
+
+Analisi simili possono essere condotte su altre variabili quantitative:
+
+- Confrontare months_inventory (il tempo necessario per vendere tutte le inserzioni) con listings (il numero totale di annunci attivi) per capire se un inventario elevato è giustificato da un numero basso o alto di annunci attivi.
+- Esplorare la correlazione tra months_inventory e median_price per vedere se esiste una relazione tra il tempo di vendita e il prezzo mediano, il che potrebbe indicare una relazione tra la domanda di mercato e i prezzi.
+
+
+## Indici di posizione, variabilità e forma.
+  
+```{r, results='hide'}
+# Attach the 'realestate_texas' data frame to the R search path
+# This allows accessing its columns directly by name without using the '$' operator
+attach(realestate_texas)
+
+```
+
+
+Analizziamo le variabili:
+```{r}
+stats <- function(x) {
+  # Coefficient of Variation: standard deviation divided by mean, expressed as a percentage
+  cv <- function(x) {
+    return(sd(x) / mean(x) * 100)
+  }
+
+  # Skewness: measure of asymmetry in the distribution
+  skewness <- function(x) {
+    mu <- mean(x)
+    sigma <- sd(x)
+    n <- length(x)
+    return(sum((x - mu)^3) / (n * sigma^3))
+  }
+
+  # Kurtosis: measure of tailedness in the distribution (excess kurtosis)
+  kurtosis <- function(x) {
+    mu <- mean(x)
+    sigma <- sd(x)
+    n <- length(x)
+    m4_value <- sum((x - mu)^4) / n
+    return(m4_value / sigma^4 - 3)
+  }
+
+  # Return a list of descriptive statistics with values rounded to 2 decimal places
+  return(list(
+    Minimo = round(min(x), 2),                         # Minimum value
+    Massimo = round(max(x), 2),                        # Maximum value
+    Media = round(mean(x), 2),                         # Mean
+    Mediana = round(median(x), 2),                     # Median
+    Quantili = round(quantile(x), 2),                  # Quantiles (0%, 25%, 50%, 75%, 100%)
+    Range = round(max(x) - min(x), 2),                 # Range (Max - Min)
+    IntervalloInterquartile = round(IQR(x), 2),        # Interquartile Range (Q3 - Q1)
+    Varianza = round(var(x), 2),                       # Variance
+    DeviazioneStandard = round(sd(x), 2),              # Standard Deviation
+    CoefficienteVariazione = round(cv(x), 2),          # Coefficient of Variation
+    Asimmetria = round(skewness(x), 2),                # Skewness
+    Curtosi = round(kurtosis(x), 2)                    # Kurtosis
+  ))
+}
+
+
+```
+
+```{r, message = FALSE, warning = FALSE}
+library(knitr)
+library(dplyr)
+library(kableExtra)
+```
+
+```{r}
+selected_columns <- c("sales", "volume", "median_price", "listings", "months_inventory")
+
+# List to store the results
+results_list <- list()
+
+# Compute statistics for each selected column
+for (col in selected_columns) {
+  stats_result <- stats(realestate_texas[[col]])  
+  results_list[[col]] <- unlist(stats_result)  # Save the result as a vector
+}
+
+# Convert the list into a dataframe
+results_df <- as.data.frame(results_list)  # Each column represents a variable
+results_df$Statistiche <- rownames(results_df)  # Add statistic names as a column
+rownames(results_df) <- NULL  # Remove row names
+
+# Reorder columns to have statistics as the first column
+results_df <- results_df[, c(ncol(results_df), 1:(ncol(results_df) - 1))]
+
+# Display the table nicely formatted in HTML
+results_df %>%
+  kable(format = "html", digits = 2, align = "c") %>%  
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover")) %>%
+  column_spec(2:ncol(results_df), width = "150px")
+
+```
+
+1. *sales*
+- I dati relativi a sales presentano una media di circa 192 vendite, mentre la mediana è di 175.5, leggermente inferiore alla media. Questo suggerisce che i dati siano leggermente asimmetrici a destra (come confermato dall'asimmetria di 0.71), indicando la presenza di alcuni valori più elevati che spostano la media verso l'alto.
+
+- Il range di 344 mostra una grande variabilità nel numero totale delle vendite. Questo è confermato anche dalla deviazione standard di circa 79, che indica che i valori si discostano significativamente dalla media. Un’ulteriore conferma si ha dal coefficiente di variazione pari al 41.4%, che solitamente, se superiore al 30%, segnala una dispersione significativa rispetto alla media.
+
+- La curtosi negativa (-0.34) indica una distribuzione platicurtica, ovvero più appiattita rispetto a una distribuzione normale, con code meno pronunciate. Questo tipo di distribuzione suggerisce che i valori siano distribuiti più verso il centro, con una minore presenza di outlier estremi rispetto a una distribuzione normale. 
+
+
+
+2. *volume*:
+- Analizzando la variabile volume, che rappresenta il valore totale delle vendite in milioni di dollari, notiamo un leggero divario tra la media (31.01) e la mediana (27.06). L'asimmetria leggermente positiva (0.87) indica una lieve asimmetria a destra, suggerendo una distribuzione con più valori elevati. Questo spiega perché la media sia più alta rispetto alla mediana.
+
+- Anche in questo caso, la variabilità dei dati è ampia, con un minimo di 8.17 e un massimo di 83.55. Questa variabilità è ulteriormente confermata dal coefficiente di variazione del 53.7%, un valore molto elevato che indica una dispersione significativa rispetto alla media.
+
+- La curtosi leggermente positiva (0.15) indica una distribuzione lievemente leptocurtica, ovvero più concentrata verso il centro rispetto a una distribuzione normale, suggerendo una presenza maggiore di valori vicino alla media.
+
+
+
+3. *median_price*:
+- Il prezzo mediano di vendita, un indicatore del "valore tipico" nel mercato, risulta essere relativamente poco variabile. Il coefficiente di variazione è significativamente più basso rispetto alle variabili precedenti (17.1%), indicando una dispersione limitata attorno alla media. La media (132665.4) è abbastanza vicina alla mediana (134500), suggerendo una distribuzione abbastanza simmetrica.
+
+- L'indice di asimmetria è leggermente negativo (-0.36), indicando una lieve asimmetria a sinistra, con una prevalenza di valori inferiori alla media. Questo spiega perché la media risulti leggermente inferiore alla mediana.
+
+- La curtosi leggermente negativa (-0.64) indica una distribuzione platicurtica, ovvero una distribuzione più piatta rispetto a una normale, con valori meno concentrati verso il centro e code meno pronunciate.
+
+
+
+4. *listings*:
+- L'asimmetria positiva (0.64) indica che i dati sono più distribuiti verso valori alti, con una coda più lunga a destra. Questo spiega perché la media (1738.02) sia superiore alla mediana (1618.5), riflettendo la presenza di alcuni valori più elevati.
+
+- La variabile presenta una distribuzione platicurtica (curtosi = -0.81), caratterizzata da una curva più piatta rispetto a una normale. Ciò indica una minore concentrazione di valori attorno alla media e una minore frequenza di valori estremi.
+
+- Il coefficiente di variazione (43.3%) suggerisce una grande variabilità dei dati rispetto alla media, evidenziando che i valori di questa variabile sono distribuiti su un ampio intervallo. Questo è confermato anche dal range (2553) e dall'intervallo interquartile (1029.5), che mostra una significativa dispersione dei dati nel 50% centrale della distribuzione.
+
+
+
+5. *months_inventory*:
+- Per quanto riguarda il tempo medio in cui un'inserzione viene venduta, notiamo una bassa variabilità nei dati. Questo è evidente dalla deviazione standard (2.3), che mostra quanto i dati siano poco dispersi rispetto alla media (9.19). Il coefficiente di variazione (25%) conferma ulteriormente questa variabilità contenuta, poiché un valore inferiore al 30% è generalmente considerato indicativo di una dispersione moderata.
+
+- L'asimmetria (0.04) è molto vicina a zero, suggerendo che la distribuzione è simmetrica. La curtosi negativa (-0.20) indica una distribuzione platicurtica, ovvero una curva leggermente appiattita rispetto a una normale, con una minore concentrazione dei dati attorno alla media e code meno pronunciate.
+
+
+Costruiamo invece una distribuzione di frequenza per le variabili:
+
+1. *city*: 
+```{r, error = TRUE}
+# Load the dplyr package for data manipulation
+library(dplyr)
+
+# Get the number of rows (observations) in the dataset 'realestate_texas'
+n <- dim(realestate_texas)[1]
+
+# Define a function to compute absolute and relative frequency distribution
+distr_freq <- function(x, n) {
+  abs_freq <- table(x)                    # Compute absolute frequency
+  rel_freq <- round(abs_freq / n, 2)      # Compute relative frequency (rounded to 2 decimals)
+  freq_distr <- cbind(abs_freq, rel_freq) # Combine both frequencies into a table
+  return(freq_distr)
+}
+
+# Apply the function to the 'city' variable to get its frequency distribution
+distr_freq_city <- distr_freq(city, n)
+
+# Convert the result to a data frame
+distr_freq_city <- as.data.frame(distr_freq_city)
+
+# Add a column for city names from the row names
+distr_freq_city$City <- rownames(distr_freq_city)
+
+# Remove row names for a cleaner data frame
+rownames(distr_freq_city) <- NULL
+
+# Reorder columns to place 'City' as the first column
+distr_freq_city <- distr_freq_city[, c(ncol(distr_freq_city), 1:(ncol(distr_freq_city) - 1))]
+
+# Display the frequency distribution in a styled HTML table
+distr_freq_city %>%
+  kable(format = "html", digits = 2, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover")) %>%
+  column_spec(2:ncol(distr_freq_city), width = "50px")
+
+
+```
+Osservando questi valori, notiamo subito che la distribuzione delle vendite tra le città è uniforme, poiché ogni città presenta la stessa frequenza assoluta (60) e relativa (0.25). Ciò significa che tutte le città compaiono lo stesso numero di volte, indicando un'equa distribuzione delle osservazioni tra le categorie.
+
+2. *month*:
+```{r}
+# Compute the frequency distribution of the 'month' variable with 'n' classes
+distr_freq_month <- distr_freq(month, n)
+
+# Convert the result into a data frame
+distr_freq_month <- as.data.frame(distr_freq_month)  
+
+# Add the row names as a new column called 'Month'
+distr_freq_month$Month <- rownames(distr_freq_month) 
+
+# Remove the existing row names
+rownames(distr_freq_month) <- NULL
+
+# Reorder columns to place 'Month' as the first column
+distr_freq_month <- distr_freq_month[, c(ncol(distr_freq_month), 1:(ncol(distr_freq_month) - 1))]
+
+# Display the table using kable with HTML formatting and custom styling
+distr_freq_month %>%
+  kable(format = "html", digits = 2, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover")) %>%
+  column_spec(2:ncol(distr_freq_month), width = "50px")  # Set fixed column width for better readability
+
+```
+Anche per i mesi, la distribuzione risulta essere uniforme. Ogni mese ha infatti la stessa frequenza assoluta (20), corrispondente a circa l' 8% delle osservazioni totali. Questo indica che i dati sono distribuiti equamente tra i mesi, senza variazioni stagionali o preferenze temporali apparenti.
+
+
+3. *year*:
+```{r}
+# Print the minimum year in the dataset
+cat("Minimo =", min(year), "\n")
+
+# Print the maximum year in the dataset
+cat("Massimo =", max(year), "\n")
+
+# Divide the 'year' variable into intervals (bins) from 2009 to 2014
+years_intervals <- cut(year, breaks = c(2009, 2010, 2011, 2012, 2013, 2014))
+
+# Calculate absolute and relative frequency distributions for the year intervals
+distr_freq_years <- distr_freq(years_intervals, n)
+abs_freq <- distr_freq_years[,"abs_freq"]
+rel_freq <- distr_freq_years[,"rel_freq"]
+
+# Compute cumulative absolute and relative frequencies
+rel_cum <- cumsum(abs_freq)        # Cumulative absolute frequency
+abs_cum <- rel_cum / n             # Cumulative relative frequency
+
+# Combine all data into a single table, rounding to 2 decimal places
+years_distr <- cbind(
+  round(distr_freq_years, 2), 
+  rel_cum = round(rel_cum, 2), 
+  abs_cum = round(abs_cum, 2)
+)
+
+# Convert to data frame and clean up row names
+years_distr <- as.data.frame(years_distr)
+years_distr$Years <- row.names(years_distr)
+row.names(years_distr) <- NULL
+
+# Reorder columns to place 'Years' as the first column
+years_distr <- years_distr[, c(ncol(years_distr), 1:(ncol(years_distr) - 1))]
+
+# Display the table nicely formatted using kable and kableExtra
+years_distr %>%
+  kable(format = "html", digits = 2, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover")) %>%
+  column_spec(2:ncol(years_distr), width = "50px")
+
+```
+La distribuzione degli anni è uniforme, con lo stesso numero di osservazioni (48) per ciascun intervallo di anno. Le frequenze assolute e relative rimangono costanti in tutti gli intervalli, con frequenze relative pari a 0.2. Questo indica che il numero di osservazioni è distribuito in modo equo tra i diversi anni.
+
+La tabella evidenzia inoltre che le frequenze cumulative assolute e relative aumentano progressivamente con una crescita lineare, confermando che i dati sono equamente distribuiti nel tempo.
+
+
+
+
+
+## Identificazione delle variabili con maggiore variabilità e asimmetria.
+
+Per determinare la variabile con la più alta variabilità, ho confrontato i coefficienti di variazione delle diverse variabili. Il coefficiente di variazione misura la dispersione relativa rispetto alla media ed è quindi utile per confrontare variabili con unità o scale molto diverse. Analizzando i dati, risulta che la variabile con la più alta variabilità è Volume, che rappresenta il valore totale delle vendite in milioni di dollari. Questa variabile ha un coefficiente di variazione pari al 53%, nettamente superiore rispetto a tutte le altre.
+
+Per quanto riguarda la distribuzione più asimmetrica, ho confrontato i valori di asimmetria delle variabili. L’indice di asimmetria valuta il grado e il tipo di asimmetria della distribuzione, distinguendo quelle con prevalenza di valori alti o bassi. La variabile Volume presenta un’asimmetria positiva pari a 0,87, indicando che i valori più alti sono maggiormente prevalenti rispetto a quelli bassi.
+
+## Creazione di classi per una variabile quantitativa
+
+```{r}
+# Print the minimum value of the 'volume' variable
+cat("Min =", min(volume), "\n")
+
+# Print the maximum value of the 'volume' variable
+cat("Max =", max(volume), "\n")
+
+# Divide 'volume' into intervals with a width of 11, starting from 8 up to max(volume) + 1
+volume_intervals <- cut(volume, breaks = seq(from = 8, to = max(volume, na.rm = TRUE) + 1, by = 11), right = FALSE)
+
+# Calculate the frequency distribution based on the intervals
+distr_freq_volume <- distr_freq(volume_intervals, n)
+
+# Extract absolute and relative frequencies
+abs_freq <- distr_freq_volume[,"abs_freq"]
+rel_freq <- distr_freq_volume[,"rel_freq"]
+
+# Compute cumulative absolute and relative frequencies
+rel_cum <- cumsum(abs_freq)
+abs_cum <- rel_cum / n
+
+# Combine the original frequency table with the cumulative frequencies and round the values
+volume_distr <- cbind(
+  round(distr_freq_volume, 2), 
+  rel_cum = round(rel_cum, 2), 
+  abs_cum = round(abs_cum, 2)
+)
+
+# Convert to data frame and clean row names
+volume_distr <- as.data.frame(volume_distr)
+volume_distr$Volume <- row.names(volume_distr)
+row.names(volume_distr) <- NULL
+
+# Reorder columns to place the 'Volume' column first
+volume_distr <- volume_distr[, c(ncol(volume_distr), 1:(ncol(volume_distr) - 1))]
+
+# Display the frequency table as a styled HTML table
+volume_distr %>%
+  kable(format = "html", digits = 2, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover")) %>%
+  column_spec(2:ncol(volume_distr), width = "50px")
+
+```
+
+Distribuzione del valore totale delle vendite nel mercato immobiliare del Texas: 
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+```
+
+```{r}
+# Remove missing values from the 'volume_intervals' factor
+volume_intervals <- na.omit(volume_intervals)
+
+# Create a bar plot to visualize the frequency distribution of total sales values
+ggplot(data = data.frame(volume_intervals), aes(x = volume_intervals)) +
+  geom_bar(stat = "count", col = "black", fill = "lightblue") +  # Draw bars with black borders and light blue fill
+  labs(
+    title = "Distribution of Total Sales Value in the Texas Real Estate Market",  # Title of the plot
+    x = "Total Sales Value per Class (mln $)",  # X-axis label
+    y = "Absolute Frequencies"  # Y-axis label
+  ) +
+  theme_bw()  # Apply a clean black-and-white theme to the plot
+
+
+```
+
+Calcolo l'indice di eterogeneità di Gini: 
+```{r}
+gini.index <- function(x) {
+  # Compute the relative frequencies (proportions) of each category
+  fi = table(x) / length(x)
+  
+  # Number of distinct categories/classes
+  J = length(table(x))
+  
+  # Compute the Gini index: 1 - sum of squared relative frequencies
+  G = 1 - sum(fi^2)
+  
+  # Normalize the Gini index by its theoretical maximum
+  return(G / ((J - 1) / J))
+}
+
+# Apply the function to the volume_intervals data
+gini.index(volume_intervals)
+
+```
+
+L'indice di eterogeneità di Gini misura il grado di disuguaglianza nella distribuzione delle frequenze tra le classi. Un valore vicino a 1 indica un'alta eterogeneità, ovvero che la maggior parte dei valori si concentra in poche classi. Al contrario, un indice di Gini vicino a 0 segnala una distribuzione più uniforme, con le osservazioni distribuite in modo simile tra tutte le classi.
+
+Nel caso in esame, l'indice di Gini è molto vicino a 1 (0.93), il che suggerisce, come si vede anche nel grafico a barre, una distribuzione del valore totale delle vendite altamente eterogenea. La maggior parte del valore delle vendite è concentrata nelle classi più basse, in particolare tra 8 e 19 (milioni di dollari), per poi diminuire progressivamente nelle classi successive. Questo indica che il valore totale delle vendite si trova principalmente nelle fasce più basse, suggerendo che la maggior parte delle transazioni ha un valore complessivo contenuto. La distribuzione decrescente verso le classi superiori suggerisce che i valori di vendita elevati siano meno frequenti, riflettendo un mercato dominato da vendite di "piccolo" valore, con solo una minoranza di transazioni che raggiunge valori complessivi più elevati.
+
+
+## Calcolo delle probabilità
+
+**Calcolo la probabilità che, presa una riga a caso di questo dataset, essa riporti la città di Beaumont.**
+
+```{r}
+# Calculate the absolute frequency (count) of each city in the dataset
+abs_freq_city <- table(city)
+
+# Extract the absolute frequency for the city "Beaumont"
+abs_freq_beaumont <- abs_freq_city["Beaumont"]
+
+# Calculate the probability (relative frequency) of "Beaumont"
+prob_beaumont <- abs_freq_beaumont / length(city)
+
+# Display the probability of "Beaumont"
+prob_beaumont
+
+```
+La probabilità che, presa una riga a caso di questo dataset, essa riporti la città di Beaumont è del 25 %
+
+
+**Calcolo la probabilità che, presa una riga a caso di questo dataset, essa riporti il mese di Luglio**
+
+```{r}
+# Calculate the absolute frequency (count) of each month in the dataset
+abs_freq_month <- table(month)
+
+# Extract the absolute frequency for July (assuming month is coded numerically as characters, e.g., "7")
+abs_freq_july <- abs_freq_month["7"]
+
+# Calculate the probability (relative frequency) of July
+prob_july <- abs_freq_july / length(month)
+
+# Return the percentage representation of the probability, rounded to two decimal places
+round(prob_july * 100, 2)
+
+
+```
+La probabilità che, presa una riga a caso di questo dataset, essa riporti il mese di luglio è del 8.33 %
+
+
+
+**Calcolo la probabilità che, presa una riga a caso di questo dataset, essa riporti il mese di dicembre 2012**
+
+La probabilità di estrarre il mese di dicembre e la probabilità di estrarre l'anno 2012 sono indipendenti. Quando due eventi sono indipendenti si calcola la probabilità di uno, la probabilità dell'altro e poi si moltiplicano le due probabilità. 
+La formula è P(A ∩ B) = P(A) × P(B).
+
+
+```{r}
+# Calculate the absolute frequency (count) of each month in the dataset
+abs_freq_month <- table(month)
+
+# Extract the absolute frequency for December (assuming months are stored as characters like "12")
+abs_freq_dec <- abs_freq_month["12"]
+
+# Calculate the probability of a sale occurring in December
+prob_A <- abs_freq_dec / length(month)
+prob_A
+
+# Calculate the absolute frequency (count) of each year in the dataset
+abs_freq_year <- table(year)
+
+# Extract the absolute frequency for the year 2012 (assuming years are stored as characters like "2012")
+abs_freq_2012 <- abs_freq_year["2012"]
+
+# Calculate the probability of a sale occurring in 2012
+prob_B <- abs_freq_2012 / length(year)
+prob_B
+
+# Calculate the joint probability (assuming independence), convert to percentage and round to 2 decimal places
+round((prob_A * prob_B) * 100, 2)
+
+```
+La probabilità che, presa una riga a caso di questo dataset, essa riporti il mese di dicembre 2012 è del 1.67 %
+
+
+
+## Creazione di nuove variabili
+
+**Calcolare il prezzo medio degli immobili utilizzando le variabili già presenti nel dataset.**
+Per calcolare il prezzo medio degli immobili utilizzando le variabili già presenti nel dataset, divido il volume totale delle vendite per il numero totale di vendite. Poiché il volume totale delle vendite è espresso in milioni di dollari, moltiplico il risultato ottenuto per 1 milione per ottenere il prezzo medio in dollari.
+
+```{r}
+# Calculate the mean price per sale (in dollars) and add it as a new column to the dataset
+# 'volume' is in millions, so we multiply by 1,000,000 to convert it to dollars
+realestate_texas$mean_price <- (realestate_texas$volume / realestate_texas$sales) * 1000000
+
+```
+
+```{r, include=FALSE}
+# Remove the 'prezzo_medio' column from the dataset (if it exists)
+realestate_texas$prezzo_medio <- NULL
+
+```
+
+**Creare una colonna che misuri l’efficacia degli annunci di vendita.**
+Per creare una colonna che misuri l'efficacia degli annunci di vendita, utilizzo le seguenti variabili:
+
+- months_inventory: rappresenta la quantità di tempo necessaria per vendere tutte le inserzioni, fornendo un'indicazione della velocità di vendita.
+- sales: indica il numero totale delle vendite, rappresentando la domanda soddisfatta.
+
+L'efficacia viene calcolata come il rapporto tra il numero totale di vendite e i mesi di inventario. Questo indice misura la capacità di vendere rapidamente, considerando il tempo disponibile per completare le vendite.
+
+- Un valore elevato dell'indice indica un mercato più efficace, in cui le vendite vengono concluse rapidamente rispetto al tempo disponibile.
+- Al contrario, un valore basso segnala un mercato meno efficiente, in cui occorre un periodo di tempo più lungo per completare una singola vendita.
+
+
+
+```{r}
+# Calculate the 'effectiveness' as the number of sales per month of inventory
+# A higher value indicates a faster-moving real estate market
+realestate_texas$effectiveness <- realestate_texas$sales / realestate_texas$months_inventory
+```
+
+```{r, message = FALSE, warning = FALSE}
+library(moments)
+```
+
+```{r}
+# Display a statistical summary of the 'effectiveness' variable
+summary(realestate_texas$effectiveness)
+
+# Print the skewness (asymmetry) of the distribution
+cat("Skewness: ", moments::skewness(realestate_texas$effectiveness), "\n")
+
+# Print the kurtosis (peakedness/tail heaviness) of the distribution
+cat("Kurtosis: ", moments::kurtosis(realestate_texas$effectiveness), "\n")
+
+```
+
+Analizzando la colonna relativa all'efficacia delle vendite (calcolata come il numero medio di vendite effettuate per mese di inventario, ovvero il rapporto tra sales e months_inventory), emergono le seguenti osservazioni:
+
+- L'indice di efficacia minima registrato è di circa 9 vendite per mese di inventario, mentre il massimo raggiunge 98 vendite per mese di inventario. Questo indica che, in alcuni casi, gli immobili vengono venduti molto rapidamente, mentre in altri la velocità di vendita è significativamente più bassa.
+- L'indice di efficacia media è pari a 22 vendite per mese di inventario, superiore alla mediana di 18. Questo divario suggerisce che la distribuzione dell'efficacia è influenzata da valori estremamente alti (outlier), che spostano la media verso l'alto.
+
+- La maggior parte delle osservazioni si concentra su valori bassi di efficacia, con una coda più lunga verso i valori elevati (*asimmetria positiva*). Questo significa che i contesti in cui il mercato è molto dinamico (e gli immobili si vendono rapidamente) sono meno frequenti.
+
+- La distribuzione è caratterizzata da un'elevata concentrazione di osservazioni attorno alla media (*distribuzione leptocurtica*), ma con alcune eccezioni estreme che si discostano significativamente. Questo indica che, nella maggior parte dei casi, l'efficacia si mantiene stabile, ma ci sono pochi casi con valori molto alti o molto bassi.
+
+## Analisi condizionata
+
+**Calcolo dell'efficacia media degli annunci per città**
+
+Poiché l'obiettivo è analizzare l'efficacia media degli annunci per ciascuna città, ho condensato i dati in modo che ogni riga rappresenti una città anziché mantenere tutte le osservazioni originali del dataset. Per farlo, ho creato un nuovo dataset che aggrega le informazioni per città. Questo dataset sintetizzato contiene un numero di righe pari al numero di città presenti e include una colonna relativa all'efficacia media per ogni città.
+
+L'efficacia media è calcolata come il numero medio di vendite effettuate per mese di inventario. In altre parole, rappresenta quante vendite vengono completate, in media, in un mese, dato il tempo totale necessario per vendere tutte le inserzioni. Confrontando 'efficacia media delle diverse città, è possibile identificare le città con:
+
+Mercato immobiliare più dinamico, caratterizzato da un'efficacia media elevata.
+Mercato immobiliare più lento, caratterizzato da un'efficacia media bassa.
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+# Group the dataset by city and calculate:
+# - the mean of 'effectiveness'
+# - the standard deviation of 'effectiveness'
+aggregated_data <- realestate_texas %>%
+  group_by(city) %>%
+  summarize(
+    mean_effectiveness = mean(effectiveness),
+    sd_effectiveness = sd(effectiveness),
+    .groups = "drop"  # Remove grouping after summarizing
+  )
+
+# Create a bar plot of mean effectiveness per city, with error bars showing ±1 standard deviation
+ggplot(data = aggregated_data, aes(x = city, y = mean_effectiveness)) +
+  geom_bar(stat = "identity", color = "black", fill = "lightblue") +  # Bars with black borders and light blue fill
+  geom_errorbar(
+    aes(
+      ymin = mean_effectiveness - sd_effectiveness, 
+      ymax = mean_effectiveness + sd_effectiveness
+    ),
+    width = 0.2, color = "black"  # Error bars with thin black lines
+  ) +
+  labs(
+    title = "Average Listing Effectiveness by City",
+    x = "City",
+    y = "Average Effectiveness"
+  ) +
+  coord_cartesian(ylim = c(0, 50)) +  # Limit the y-axis range
+  theme_bw() +  # Clean black-and-white theme
+  theme(legend.position = "none")  # No legend needed
+
+
+```
+
+Dal grafico si nota che Bryan-College Station è la città con l'efficacia media più alta, indicando una maggiore rapidità nella vendita degli immobili rispetto alle altre città. Al contrario, Wichita Falls è la città con l'efficacia media più bassa, suggerendo un mercato più lento.
+
+Le barre di errore nere, che rappresentano la deviazione standard, indicano la variabilità dei dati rispetto alla media:
+- Wichita Falls mostra una deviazione standard ridotta, segnalando una maggiore uniformità nei tempi di vendita.
+- Bryan-College Station, al contrario, presenta una deviazione standard elevata, suggerendo una maggiore dispersione nei dati, ovvero tempi di vendita meno uniformi.
+
+
+**Distribuzione del valore medio delle vendite per città e anno:**
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(dplyr)
+attach(realestate_texas)
+```
+
+```{r}
+# Group the dataset by city and year, then calculate:
+# - the mean of 'volume'
+# - the standard deviation of 'volume'
+summary_data <- realestate_texas %>%
+  group_by(city, year) %>%
+  summarize(
+    mean_volume = mean(volume, na.rm = TRUE),
+    sd_volume = sd(volume, na.rm = TRUE),
+    .groups = "drop"  # Remove grouping after summarizing
+  )
+
+# Create a grouped bar plot showing average sales volume per city and year
+ggplot(data = summary_data, aes(x = year, y = mean_volume, fill = city)) +
+  geom_bar(stat = "identity", position = "dodge") +  # Side-by-side bars for each city within a year
+  geom_errorbar(
+    aes(
+      ymin = mean_volume - sd_volume, 
+      ymax = mean_volume + sd_volume
+    ), 
+    position = position_dodge(0.9),  # Align error bars with bars
+    width = 0.2, color = "black"
+  ) +
+  labs(
+    title = "Average Sales Volume by City and Year",
+    x = "Year",
+    y = "Average Sales Volume (mln $)"
+  ) +
+  theme_bw()  # Apply a clean black-and-white theme
+
+
+```
+
+Il grafico mostra la distribuzione del volume medio delle vendite per città e anno, con barre di errore che rappresentano la deviazione standard del volume delle vendite.
+
+Per la maggior parte delle città analizzate, il volume medio delle vendite aumenta progressivamente dal 2010 al 2014, indicando una tendenza positiva nel mercato immobiliare durante questo periodo. Tuttavia, sia Beaumont che Wichita Falls registrano un leggero calo nel 2011 rispetto all'anno precedente.
+
+In generale, Bryan-College Station e Tyler si distinguono per avere valori medi delle vendite più elevati rispetto alle altre città. In particolare, Tyler si posiziona nettamente al di sopra, suggerendo un mercato immobiliare più dinamico e una possibile presenza di una clientela con maggiore capacità di spesa. 
+
+Le barre di errore indicano che la variabilità del volume delle vendite è maggiore per Tyler e Bryan-College Station, specialmente negli anni 2013 e 2014. Questo potrebbe indicare una maggiore diversificazione nel valore delle proprietà vendute in queste città.
+Beaumont e Wichita Falls hanno una deviazione standard più contenuta, suggerendo una distribuzione più uniforme dei volumi di vendita.
+
+Questo grafico evidenzia come il mercato immobiliare si sia evoluto nel tempo, mostrando dinamiche differenti tra le città, con Tyler come leader nel valore medio delle vendite e Wichita Falls in una posizione meno competitiva. Le barre di errore aiutano a comprendere la variabilità interna a ciascun mercato cittadino.
+
+
+
+**Serie storica che rappresenta volume totale delle vendite nel 2014:**
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(dplyr)
+attach(realestate_texas)
+```
+
+```{r, message = FALSE, warning = FALSE}
+# Filter the dataset to include only data from the year 2014,
+# then group by month and calculate:
+# - the mean of 'months_inventory'
+# - the standard deviation of 'months_inventory'
+summary_data_2014 <- realestate_texas %>%
+  filter(year == 2014) %>%
+  group_by(month) %>%
+  summarize(
+    mean_months_inventory = mean(months_inventory, na.rm = TRUE),
+    sd_months_inventory = sd(months_inventory, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Create a line plot to show the monthly trend in inventory time for 2014
+ggplot(data = summary_data_2014, aes(x = month, y = mean_months_inventory)) +
+  geom_line(color = "black", linewidth = 1) +       # Line connecting monthly averages
+  geom_point(color = "black", linewidth = 2) +      # Dots for each month's average
+  labs(
+    title = "Average Months to Sell Listings in 2014 (Real Estate Market)",
+    x = "Month",
+    y = "Average Months to Sell"
+  ) +
+  scale_x_continuous(
+    breaks = 1:12,
+    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")  # Month labels in English
+  ) +
+  scale_y_continuous(limits = c(5.5, 8), breaks = seq(5.5, 8, by = 0.5)) +  # Y-axis range
+  theme_bw()  # Apply clean black-and-white theme
+
+
+```
+
+Da questa serie storica notiamo come la media dei mesi necessari per vendere le inserzioni nel 2014 mantenga valori piuttosto moderati. Infatti, il tempo medio minimo per vendere un'inserzione sul mercato immobiliare nel Texas è di circa 6 mesi e mezzo, mentre il tempo massimo è di circa 7 mesi e mezzo. L'andamento comunque segue un trend: da gennaio a giugno i tempi medi tendono ad aumentare passando da 7 mesi a 7 mesi e mezzo, mentre da luglio in poi c'è una tendenza a diminuire. Questo suggerisce che, in media, le persone tendono ad acquistare un'inserzione nei mesi che vanno da luglio a dicembre.
+
+
+## Creazione di visualizzazioni con ggplot2
+
+
+**Boxplot per confrontare la distribuzione del prezzo mediano tra le città.**
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+```
+
+```{r}
+# Create a boxplot to compare the distribution of median property prices across cities
+ggplot(data = realestate_texas, aes(x = city, y = median_price, fill = city)) +
+  geom_boxplot() +  # Boxplot for each city
+  labs(
+    title = "Comparison of Median Property Price Distribution Across Cities",  # Plot title
+    x = "City",  # X-axis label
+    y = "Median Sale Price"  # Y-axis label
+  ) +
+  theme_bw()  # Clean black-and-white theme
+
+```
+
+Dal grafico si osserva una significativa differenza nel prezzo mediano di vendita degli immobili tra le diverse città. In particolare, il prezzo mediano degli immobili a Wichita Falls risulta nettamente inferiore rispetto a quello di Bryan-College Station. Tra le due città, si registra una differenza di circa il 50%.
+
+Le città con il prezzo mediano più elevato sono Bryan-College Station e Tyler, mentre Beaumont mantiene un prezzo intermedio rispetto alle altre città. È interessante notare la presenza di outlier, ossia valori anomali, che si discostano dai valori mediani registrati nelle città di Wichita Falls e Beaumont.
+
+
+**Grafico a barre per confrontare il totale delle vendite per mese e città.**
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+```
+
+```{r}
+# Create a stacked bar chart showing the percentage distribution of sales
+# across cities for each month
+ggplot(data = realestate_texas, aes(x = factor(month), y = sales, fill = city)) +
+  geom_bar(stat = "identity", position = "fill") +  # Stack bars and normalize to 100%
+  labs(
+    title = "Percentage Distribution of Sales by Month and City",  # Chart title
+    x = "Month",  # X-axis label
+    y = "Sales Percentage"  # Y-axis label
+  ) +
+  scale_x_discrete(
+    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")  # Month labels in English
+  ) +
+  theme_bw()  # Apply clean black-and-white theme
+
+```
+
+Il grafico mostra la distribuzione percentuale delle vendite per mese e città. Si nota chiaramente che Tyler mantiene costantemente la percentuale di vendite più alta rispetto alle altre città, indipendentemente dal mese. Beaumont e Bryan-College Station presentano percentuali di vendita simili, con alcune variazioni mensili. In particolare, da maggio a luglio, Bryan-College Station supera Beaumont, mentre nei mesi da ottobre a febbraio la tendenza si inverte. Infine, Wichita Falls registra percentuali di vendita inferiori durante tutto l'anno rispetto alle altre città in analisi, suggerendo un mercato meno dinamico.
+
+
+**Serie storica per confrontare l’andamento delle vendite in periodi storici differenti.**
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+# Create a new temporal variable by combining year and month into a Date object (1st day of each month)
+realestate_texas <- realestate_texas %>%
+  mutate(year_month = as.Date(paste(year, month, "01", sep = "-")))
+
+# Group data by year_month and city, then calculate:
+# - the mean of 'months_inventory'
+# - the standard deviation of 'months_inventory'
+summary_data <- realestate_texas %>%
+  group_by(year_month, city) %>%
+  summarize(
+    mean_months_inventory = mean(months_inventory, na.rm = TRUE),
+    sd_months_inventory = sd(months_inventory, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Create a line plot showing the average months of inventory over time for each city
+ggplot(data = summary_data, aes(x = year_month, y = mean_months_inventory, color = city)) +
+  geom_line(linewidth = 1) +      # Draw lines for each city
+  geom_point(size = 2) +          # Add points at each data value
+  labs(
+    title = "Average Months to Sell Listings (2010–2014)",  # Chart title
+    x = "Year",                                               # X-axis label
+    y = "Average Months to Sell",                             # Y-axis label
+    color = "City"                                            # Legend title
+  ) +
+  scale_x_date(
+    date_labels = "%Y",           # Format x-axis to show only the year
+    date_breaks = "1 year"        # Show one label per year
+  ) +
+  theme_bw() +                    # Clean black-and-white theme
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),       # Keep x-axis text horizontal and centered
+    legend.position = "top",                                  # Move legend above the plot
+    legend.title = element_text(size = 10),                   # Set font size for legend title
+    legend.text = element_text(size = 9)                      # Set font size for legend labels
+  )
+
+```
+
+
+Il grafico mostra la media dei mesi necessari per vendere le inserzioni immobiliari, dal 2010 al 2014. Si osserva come Tyler abbia, in media, tempi di vendita più lunghi rispetto alle altre città, mentre Wichita Falls risulta essere la città dove le inserzioni vengono vendute più rapidamente.
+
+Un pattern interessante è la tendenza generale, verso la fine di ogni anno, a una diminuzione della media dei mesi necessari per completare le vendite. In particolare, per Bryan-College Station, si nota un calo significativo dei tempi di vendita dall'inizio del 2013 fino alla fine del 2014, con un lieve rialzo nei primi mesi del 2014.
+
+Nonostante le differenze nei tempi medi di vendita tra le città, tutte sembrano seguire un andamento simile, con trend paralleli nel corso del periodo analizzato. 
+
+**Boxplot per confrontare la distribuzione del valore totale delle vendite tra le varie città e anche tra i vari anni.**
+
+```{r, message = FALSE, warning = FALSE}
+library(ggplot2)
+```
+
+```{r}
+# Create a boxplot to show the distribution of total sales volume by city and year
+ggplot(data = realestate_texas, aes(x = factor(year), y = volume, fill = city)) +
+  geom_boxplot() +  # Boxplots grouped by year, colored by city
+  labs(
+    title = "Distribution of Total Sales Volume by City and Year",  # Plot title
+    x = "Years",  # X-axis label
+    y = "Total Sales Volume (mln $)"  # Y-axis label
+  ) +
+  theme_bw()  # Clean black-and-white theme
+
+```
+
+Osservando il grafico che mostra la distribuzione del valore totale delle vendite (in milioni di dollari) per città e anni, emergono le seguenti considerazioni:
+
+Wichita Falls ha il valore totale delle vendite più basso in tutti gli anni analizzati.
+La distribuzione dei dati è molto stretta (boxplot compatto), suggerendo una bassa variabilità. Questo indica che le vendite a Wichita Falls sono state consistenti, senza variazioni significative tra i valori.
+
+Beaumont presenta valori leggermente più alti rispetto a Wichita Falls, ma comunque inferiori rispetto alle altre città.
+La variabilità è moderata, come si nota dalla distanza tra i quartili. Tuttavia, non ci sono outlier, segnalando che le vendite sono rimaste in un range prevedibile.
+
+Bryan-College Station mostra un'ampia variabilità, specialmente nel 2012, come indicato dalla grande distanza tra i quartili e la presenza di un outlier. Ciò suggerisce una gamma più ampia di valori totali delle vendite, con alcune vendite molto elevate.
+L'ampia dispersione nel 2012 potrebbe indicare un mercato immobiliare instabile o la presenza di proprietà ad alto valore vendute quell'anno.
+
+Tyler Si distingue per avere i valori totali delle vendite mediamente più alti, con una variabilità significativa nel 2012. Questo suggerisce un mercato immobiliare più dinamico rispetto alle altre città.
+Anche se non presenta outlier evidenti, il range interquartile è ampio, suggerendo una maggiore diversificazione nel valore delle vendite.
+
+
+Il confronto tra gli anni evidenzia che il 2012 sembra essere un anno particolarmente variabile per Bryan-College Station e Tyler. Questo potrebbe essere stato causato da eventi specifici nel mercato immobiliare o da cambiamenti economici.
+Per Beaumont e Wichita Falls, invece, la distribuzione rimane stabile, indicando una minore influenza di fattori esterni o una stabilità del mercato locale.
+
+
+
+
+
+
+## Conclusioni.
+
+**Analisi del mercato immobiliare nelle città del Texas**
+
+La città di Tyler emerge in ogni analisi come il mercato immobiliare più dinamico e florido tra quelli analizzati. Con percentuali di vendita sempre superiori rispetto alle altre città, Tyler domina anche su fattori come il valore medio delle vendite, il prezzo mediano degli immobili e il valore totale delle transazioni. Questo quadro suggerisce un mercato composto principalmente da acquirenti con elevate disponibilità finanziarie, capaci di sostenere transazioni immobiliari di valore significativo. Tyler si conferma quindi una città caratterizzata da un'economia solida e da una clientela particolarmente abbiente.
+
+All'estremo opposto troviamo Wichita Falls, il cui mercato immobiliare si dimostra più lento e meno dinamico. Con un prezzo mediano degli immobili e un valore medio delle vendite tra i più bassi, Wichita Falls registra costantemente percentuali di vendita inferiori rispetto alle altre città. Questa realtà suggerisce un contesto caratterizzato da una clientela con risorse economiche più limitate e una minore vivacità del mercato. Tuttavia, la stabilità dei valori registrati denota un mercato locale meno influenzato da fattori esterni e con una certa uniformità. 
+
+La città di Bryan-College Station spicca per la sua elevata efficacia media, ovvero la capacità di concludere vendite immobiliari in tempi più brevi rispetto alle altre città. Insieme a Tyler, si distingue per valori medi delle vendite e prezzi mediani tra i più alti. Tuttavia, i dati evidenziano un’elevata variabilità nei valori totali delle vendite, indicando una gamma ampia di transazioni, da quelle più modeste a quelle particolarmente significative. Questa città registra percentuali di vendita simili a quelle di Beaumont, sebbene sia interessante notare un'alternanza stagionale: Bryan-College Station vede il picco delle vendite nei mesi da maggio a luglio, mentre a Beaumont questo avviene tra ottobre e febbraio.
+
+Beaumont presenta un mercato più stabile, con percentuali di vendita lievemente superiori rispetto a Wichita Falls ma inferiori rispetto a Tyler e Bryan-College Station. I dati mostrano una distribuzione uniforme delle vendite e un mercato meno variabile, suggerendo una stabilità complessiva.
+
+L'analisi del mercato immobiliare delle città del Texas evidenzia dinamiche diverse e ben definite tra le città. Tyler e Bryan-College Station si confermano leader per vivacità e valore, mentre Wichita Falls e Beaumont mostrano mercati più lenti e stabili. Osservando la distribuzione del valore delle vendite, emerge una concentrazione significativa nelle fasce di valore più basse, in particolare tra 8 e 19 milioni di dollari. Man mano che si sale verso le fasce superiori, la frequenza delle transazioni diminuisce, suggerendo un mercato dominato da vendite di valore contenuto. Le transazioni di alto valore, pur presenti, rappresentano una minoranza, riflettendo un contesto prevalentemente orientato verso una domanda più accessibile.
+
+Nel complesso, il mercato immobiliare del Texas ha dimostrato una notevole capacità di ripresa e una crescita esponenziale dal 2011 in poi, con differenze significative tra le varie aree analizzate.
+
+*Raccomandazioni:*
+Considerando la situazione a Wichita Falls, sarebbe utile promuovere incentivi economici per attrarre investitori e aumentare la vivacità del mercato. A Bryan-College Station, nonostante l'elevata rapidità di vendita, l'ampia variabilità dell'offerta potrebbe essere ridotta attraverso una gestione più efficace. Beaumont, pur essendo stabile e con una condizione migliore rispetto a Wichita Falls, potrebbe puntare ad aumentare il valore totale delle vendite per rendere il mercato più competitivo. Tyler, invece, dovrebbe concentrarsi sul mantenere e consolidare la propria dinamicità, che rappresenta un punto di forza. 
+
+
+
+
+
+
+
+
+
+
+
+
+
